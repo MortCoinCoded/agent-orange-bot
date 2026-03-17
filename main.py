@@ -33,14 +33,22 @@ async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(random.choice(jokes))
 
 # ===== X POST FUNCTION =====
+import requests
+from requests_oauthlib import OAuth1
+
 def post_to_x(text):
     url = "https://api.twitter.com/2/tweets"
-    headers = {
-        "Authorization": f"Bearer {X_ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
+
+    auth = OAuth1(
+        X_API_KEY,
+        X_API_SECRET,
+        X_ACCESS_TOKEN,
+        X_ACCESS_SECRET
+    )
+
     json_data = {"text": text}
-    requests.post(url, headers=headers, json=json_data)
+
+    requests.post(url, auth=auth, json=json_data)
 
 # ===== AUTO POST =====
 async def auto_post(context: ContextTypes.DEFAULT_TYPE):
