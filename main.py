@@ -751,7 +751,7 @@ async def x_mentions_loop(app):
             me_id,
             max_results=5,
             tweet_fields=["author_id", "created_at"],
-            expansio
+            expansio,
             ns=["author_id"],
             user_auth=True,
         )
