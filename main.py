@@ -103,7 +103,7 @@ greetings = [
     "Welcome to the current anomaly.",
     "Entry logged. Enjoy the distortion.",
     "AGENT ORANGE greets the newly arrived.",
-    "Welcome in. The signal rarely slee
+    "Welcome in. The signal rarely sleeps.",
 [3/17/2026 11:33 PM] Human#1: ps.",
     "You’ve entered the system. Welcome.",
     "New participant detected. Welcome to the loop.",
