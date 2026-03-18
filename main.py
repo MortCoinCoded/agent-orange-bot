@@ -191,8 +191,8 @@ jokes = [
     "The candle giveth and the candle gaslighteth.",
     "This isn’t volatility. It’s interpretive dance.",
     "Paper hands printing cautionary tales.",
-    "Every chart looks good, unil it doesnt. ",
-    "you're hung if you squint spiritually.",
+    "Every chart looks good until it doesn’t.",
+    "You’re bullish if you squint spiritually.",
     "Hopium reserves replenished for no reason.",
     "Support is just where panic pauses.",
     "Somebody called this consolidation with tears in their eyes.",
@@ -274,7 +274,7 @@ updates = [
     "SYSTEM LOG 061 // signal tested by silence",
     "SYSTEM LOG 062 // monitoring pattern retention",
     "SYSTEM LOG 063 // anomaly visibility increased",
-    "SYSTEM LOG 064 // your moms a memecoin whore",
+    "SYSTEM LOG 064 // feed tension rising slowly",
     "SYSTEM LOG 065 // engagement traces detected",
     "SYSTEM LOG 066 // orange layer still active",
     "SYSTEM LOG 067 // sentiment grid flickering",
@@ -469,6 +469,7 @@ def tg_safe(text):
 def x_safe(text):
     return text[:275].strip()
 
+
 # =========================
 # OPENAI
 # =========================
@@ -561,6 +562,7 @@ Only output the reply.
         log.warning("OpenAI reply generation failed: %s", e)
         return None
 
+
 # =========================
 # X CLIENT
 # =========================
@@ -599,6 +601,7 @@ async def x_reply(tweet_id, text):
         )
     except Exception as e:
         log.warning("X reply failed: %s", e)
+
 
 # =========================
 # RESPONSE LOGIC
@@ -654,6 +657,7 @@ def x_keyword_response(raw_text):
 
     return None
 
+
 # =========================
 # TELEGRAM
 # =========================
@@ -704,13 +708,15 @@ async def keyword_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         if ai:
             await update.message.reply_text(tg_safe(ai))
-            return
+
 
 # =========================
 # BACKGROUND TASKS
 # =========================
 async def combined_auto_post_loop(app):
+    log.info("Starting combined auto-post loop")
     await asyncio.sleep(25)
+
     while True:
         msg = await asyncio.to_thread(ai_generate_post)
         if not msg:
@@ -728,9 +734,11 @@ async def combined_auto_post_loop(app):
 
 
 async def x_mentions_loop(app):
+    log.info("Starting X mentions loop")
+
     client = build_x_client()
     if not client:
-        log.info("X client not configured; skipping mention loop")
+        log.warning("X client not configured; skipping mention loop")
         return
 
     try:
@@ -814,9 +822,12 @@ async def x_mentions_loop(app):
 
         await asyncio.sleep(MENTION_CHECK_SECONDS)
 
+
 async def post_init(app):
+    log.info("Starting background tasks")
     app.create_task(combined_auto_post_loop(app))
     app.create_task(x_mentions_loop(app))
+
 
 # =========================
 # MAIN
