@@ -752,7 +752,7 @@ async def x_mentions_loop(app):
             max_results=5,
             tweet_fields=["author_id", "created_at"],
             expansio
-[3/17/2026 11:33 PM] Human#1: ns=["author_id"],
+            ns=["author_id"],
             user_auth=True,
         )
         if initial and initial.data:
