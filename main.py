@@ -418,7 +418,7 @@ ca_lines = [
     f"Signal requested. CA:\n{CONTRACT_ADDRESS}",
     f"Contract detected:\n{CONTRACT_ADDRESS}",
     f"Orange protocol returns this CA:\n{CONTRACT_ADDRESS}",
-[3/17/2026 11:33 PM] Human#1: ]
+]
 
 # =========================
 # HELPERS
