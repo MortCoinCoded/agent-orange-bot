@@ -609,8 +609,7 @@ def telegram_keyword_response(raw_text):
     if keyword_orange(text, raw_text):
         if raw_text.strip() == "🟧":
             return "🟧"
-        return pick
-("orange", orange_lines)
+        return pick_line("orange", orange_lines)
 
     if keyword_gm(text):
         return pick_line("gm", gm_lines)
