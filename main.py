@@ -610,7 +610,7 @@ def telegram_keyword_response(raw_text):
         if raw_text.strip() == "🟧":
             return "🟧"
         return pick
-[3/17/2026 11:33 PM] Human#1: _line("orange", orange_lines)
+("orange", orange_lines)
 
     if keyword_gm(text):
         return pick_line("gm", gm_lines)
