@@ -192,7 +192,7 @@ jokes = [
     "The candle giveth and the candle gaslighteth.",
     "This isn’t volatility. It’s interpretive dance.",
     "Paper hands printing cautionary tales.",
-    "Every chart looks go
+    "Every chart looks good, unil it doesnt. ",
 [3/17/2026 11:33 PM] Human#1: od if you squint spiritually.",
     "Hopium reserves replenished for no reason.",
     "Support is just where panic pauses.",
