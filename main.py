@@ -761,7 +761,7 @@ async def x_mentions_loop(app):
 
     while True:
         try:
-       resp = await asyncio.to_thread(
+            resp = await asyncio.to_thread(
                 client.get_users_mentions,
                 me_id,
                 since_id=last_seen_id,
@@ -813,7 +813,6 @@ async def x_mentions_loop(app):
             log.warning("Mention loop error: %s", e)
 
         await asyncio.sleep(MENTION_CHECK_SECONDS)
-
 
 async def post_init(app):
     app.create_task(combined_auto_post_loop(app))
