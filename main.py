@@ -751,8 +751,7 @@ async def x_mentions_loop(app):
             me_id,
             max_results=5,
             tweet_fields=["author_id", "created_at"],
-            expansio,
-            ns=["author_id"],
+            expansions=["author_id"],
             user_auth=True,
         )
         if initial and initial.data:
@@ -762,7 +761,7 @@ async def x_mentions_loop(app):
 
     while True:
         try:
-            resp = await asyncio.to_thread(
+       resp = await asyncio.to_thread(
                 client.get_users_mentions,
                 me_id,
                 since_id=last_seen_id,
