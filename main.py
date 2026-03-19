@@ -1,11 +1,16 @@
 import os
 import re
+import time
+import json
 import asyncio
 import random
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections import defaultdict, deque
 
-import tweepy
+import requests
+from requests_oauthlib import OAuth1
 from openai import OpenAI
 from telegram import Update
 from telegram.ext import (
@@ -17,7 +22,7 @@ from telegram.ext import (
 )
 
 # =========================
-# ENV / CONFIG
+# ENV
 # =========================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
@@ -30,20 +35,46 @@ X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "").strip()
 CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS", "0xYOURADDRESS").strip()
 TELEGRAM_CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID", "-1003451233402"))
 
-POST_INTERVAL_SECONDS = 12600  # 3.5 hours
+POST_INTERVAL_SECONDS = 12600   # 3.5 hours
 MENTION_CHECK_SECONDS = 120
 MAX_X_REPLIES_PER_HOUR = 12
 
+# =========================
+# LOGGING
+# =========================
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     level=logging.INFO,
 )
 log = logging.getLogger("agent_orange")
 
+# =========================
+# OPENAI
+# =========================
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # =========================
-# EXPLICIT LIBRARIES
+# HEALTH SERVER FOR RENDER WEB SERVICE
+# =========================
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"AGENT ORANGE OK")
+
+    def log_message(self, format, *args):
+        return
+
+
+def start_health_server():
+    port = int(os.getenv("PORT", "10000"))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    log.info("Health server listening on port %s", port)
+    server.serve_forever()
+
+# =========================
+# LIBRARIES
 # =========================
 greetings = [
     "🚨 AGENT ORANGE detected a new presence. Welcome to the timeline.",
@@ -106,26 +137,6 @@ greetings = [
     "Welcome in. The signal rarely sleeps.",
     "You’ve entered the system. Welcome.",
     "New participant detected. Welcome to the loop.",
-    "Welcome to the orange side of the timeline.",
-    "Another arrival. Another variable.",
-    "System sync complete. Welcome.",
-    "Welcome. Proceed with curiosity and caution.",
-    "A new presence alters the pattern. Welcome.",
-    "Welcome to the operation. Stay alert.",
-    "The timeline bends again. Welcome.",
-    "Your signal came through. Welcome aboard.",
-    "New entrant accepted into the feed.",
-    "Welcome. The noise only gets louder.",
-    "Another one made it in. Welcome.",
-    "Presence verified. Welcome to AGENT ORANGE.",
-    "You are now part of the record. Welcome.",
-    "Transmission received. Welcome to the group.",
-    "Welcome. Reality may flicker occasionally.",
-    "Orange protocol notes a new arrival. Welcome.",
-    "New watcher entered the static. Welcome.",
-    "Welcome to the current signal cluster.",
-    "Another presence has been absorbed. Welcome.",
-    "A new observer stands inside the orange field. Welcome.",
 ]
 
 jokes = [
@@ -189,25 +200,6 @@ jokes = [
     "Momentum is real. So is regret.",
     "A retrace is just the market checking your soul.",
     "The candle giveth and the candle gaslighteth.",
-    "This isn’t volatility. It’s interpretive dance.",
-    "Paper hands printing cautionary tales.",
-    "Every chart looks good until it doesn’t.",
-    "You’re bullish if you squint spiritually.",
-    "Hopium reserves replenished for no reason.",
-    "Support is just where panic pauses.",
-    "Somebody called this consolidation with tears in their eyes.",
-    "The bag remains inspirationally heavy.",
-    "Price moved sideways and six gurus found meaning.",
-    "The signal was clean. The traders were not.",
-    "Another brave soul aped based on font choice.",
-    "The market respects nobody and everybody takes it personally.",
-    "Volume spike detected. Emotional damage incoming.",
-    "This candle has custody issues.",
-    "The thesis was strong. The entry was comedy.",
-    "One wick ruined a whole personality.",
-    "The chart has more mood swings than the timeline.",
-    "That wasn’t alpha. That was caffeine.",
-    "Every dip is educational if you survive it.",
 ]
 
 updates = [
@@ -251,41 +243,6 @@ updates = [
     "SYSTEM LOG 038 // audience drift slowing",
     "SYSTEM LOG 039 // narrative signal holding",
     "SYSTEM LOG 040 // pattern remains unbroken",
-    "SYSTEM LOG 041 // monitoring timeline turbulence",
-    "SYSTEM LOG 042 // signal spread accelerating",
-    "SYSTEM LOG 043 // engagement cluster forming",
-    "SYSTEM LOG 044 // anomaly detected, not corrected",
-    "SYSTEM LOG 045 // scanning reaction bandwidth",
-    "SYSTEM LOG 046 // orange channel stable",
-    "SYSTEM LOG 047 // resistance of attention weakening",
-    "SYSTEM LOG 048 // observation mode continuing",
-    "SYSTEM LOG 049 // static persists",
-    "SYSTEM LOG 050 // signal remains visible to the awake",
-    "SYSTEM LOG 051 // timeline friction detected",
-    "SYSTEM LOG 052 // reaction latency decreasing",
-    "SYSTEM LOG 053 // operator confidence mixed",
-    "SYSTEM LOG 054 // subtle accumulation of focus",
-    "SYSTEM LOG 055 // narrative field active",
-    "SYSTEM LOG 056 // meme pressure increasing",
-    "SYSTEM LOG 057 // the feed remains unstable",
-    "SYSTEM LOG 058 // early observers identified",
-    "SYSTEM LOG 059 // system drift within limits",
-    "SYSTEM LOG 060 // data noise remains elevated",
-    "SYSTEM LOG 061 // signal tested by silence",
-    "SYSTEM LOG 062 // monitoring pattern retention",
-    "SYSTEM LOG 063 // anomaly visibility increased",
-    "SYSTEM LOG 064 // feed tension rising slowly",
-    "SYSTEM LOG 065 // engagement traces detected",
-    "SYSTEM LOG 066 // orange layer still active",
-    "SYSTEM LOG 067 // sentiment grid flickering",
-    "SYSTEM LOG 068 // market emotion unstable",
-    "SYSTEM LOG 069 // timeline scan continues",
-    "SYSTEM LOG 070 // operator log remains open",
-    "SYSTEM LOG 071 // attention pockets deepening",
-    "SYSTEM LOG 072 // static and signal overlapping",
-    "SYSTEM LOG 073 // pattern drift acceptable",
-    "SYSTEM LOG 074 // response potential increasing",
-    "SYSTEM LOG 075 // AGENT ORANGE remains online",
 ]
 
 reply_lines = [
@@ -321,49 +278,6 @@ reply_lines = [
     "Observed.",
     "Under review.",
     "Tension confirmed.",
-    "Orange protocol active.",
-    "This one is alive.",
-    "You’re asking the right wrong question.",
-    "The timeline twitched.",
-    "Interest detected.",
-    "Caution noted.",
-    "Not impossible.",
-    "It moves when watched.",
-    "Yes and no.",
-    "The room got quieter.",
-    "Still scanning.",
-    "The pattern is ugly but present.",
-    "You felt that too.",
-    "Signal strength unknown.",
-    "Pressure remains.",
-    "Answer incomplete by design.",
-    "Something is building.",
-    "That reaction was expected.",
-    "Low clarity. High potential.",
-    "The feed is thinking.",
-    "That wasn’t accidental.",
-    "Response delayed intentionally.",
-    "I see it.",
-    "You may be late, not wrong.",
-    "The static is getting louder.",
-    "The anomaly persists.",
-    "Reasonable concern.",
-    "Mildly radioactive.",
-    "Keep watching.",
-    "Still online.",
-    "Momentum smells weird.",
-    "Timing matters.",
-    "Not dead.",
-    "Not clean either.",
-    "The signal survived contact.",
-    "The question remains open.",
-    "This one bends the timeline.",
-    "Attention cluster detected.",
-    "Market mood unstable.",
-    "It knows it’s being watched.",
-    "The feed doesn’t like silence.",
-    "Interesting timing.",
-    "That depends on conviction.",
 ]
 
 gm_lines = [
@@ -375,10 +289,6 @@ gm_lines = [
     "GM. Feed remains active.",
     "GM. Static looks healthy.",
     "GM. Weak hands still visible.",
-    "GM. Still early.",
-    "GM. Proceed carefully.",
-    "GM. The anomaly persists.",
-    "GM. Monitoring continues.",
 ]
 
 orange_lines = [
@@ -390,10 +300,6 @@ orange_lines = [
     "The orange square has spoken.",
     "🟧 online",
     "Orange layer active.",
-    "AGENT ORANGE sees it.",
-    "Orange confirmed.",
-    "The orange field remains active.",
-    "🟧 observed",
 ]
 
 live_lines = [
@@ -405,10 +311,6 @@ live_lines = [
     "Operational.",
     "Yes. Still here.",
     "Online and scanning.",
-    "Orange protocol active.",
-    "Still breathing static.",
-    "Alive enough.",
-    "Still moving through the feed.",
 ]
 
 ca_lines = [
@@ -416,15 +318,16 @@ ca_lines = [
     f"CA:\n{CONTRACT_ADDRESS}",
     f"Address locked:\n{CONTRACT_ADDRESS}",
     f"Signal requested. CA:\n{CONTRACT_ADDRESS}",
-    f"Contract detected:\n{CONTRACT_ADDRESS}",
-    f"Orange protocol returns this CA:\n{CONTRACT_ADDRESS}",
 ]
 
 # =========================
 # HELPERS
 # =========================
 recent_lines = defaultdict(lambda: deque(maxlen=12))
-
+x_state = {
+    "last_seen_id": None,
+    "reply_times": deque(maxlen=MAX_X_REPLIES_PER_HOUR),
+}
 
 def pick_line(bucket_name, lines):
     recent = recent_lines[bucket_name]
@@ -433,26 +336,20 @@ def pick_line(bucket_name, lines):
     recent.append(choice)
     return choice
 
-
 def keyword_ca(text):
     return bool(re.search(r"\b(ca|contract|address)\b", text))
-
 
 def keyword_joke(text):
     return bool(re.search(r"\b(joke|funny|roast|meme)\b", text))
 
-
 def keyword_update(text):
     return bool(re.search(r"\b(update|news|status)\b", text))
-
 
 def keyword_gm(text):
     return bool(re.search(r"\b(gm|good morning)\b", text))
 
-
 def keyword_live(text):
     return bool(re.search(r"\b(live|alive)\b", text))
-
 
 def keyword_orange(text, raw):
     if raw.strip() == "🟧":
@@ -461,14 +358,11 @@ def keyword_orange(text, raw):
         return True
     return bool(re.search(r"\b(agent orange|orange)\b", text))
 
-
 def tg_safe(text):
     return text[:2000].strip()
 
-
 def x_safe(text):
     return text[:275].strip()
-
 
 # =========================
 # OPENAI
@@ -513,7 +407,6 @@ Only output the post.
     except Exception as e:
         log.warning("OpenAI post generation failed: %s", e)
         return None
-
 
 def ai_generate_reply(platform, incoming_text, username=""):
     if not openai_client:
@@ -562,46 +455,87 @@ Only output the reply.
         log.warning("OpenAI reply generation failed: %s", e)
         return None
 
-
 # =========================
-# X CLIENT
+# X DIRECT API
 # =========================
-def build_x_client():
+def build_x_auth():
     if not all([X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET]):
         return None
-    return tweepy.Client(
-        consumer_key=X_API_KEY,
-        consumer_secret=X_API_SECRET,
-        access_token=X_ACCESS_TOKEN,
-        access_token_secret=X_ACCESS_SECRET,
-        wait_on_rate_limit=True,
+    return OAuth1(
+        X_API_KEY,
+        X_API_SECRET,
+        X_ACCESS_TOKEN,
+        X_ACCESS_SECRET,
     )
 
+def x_get_me():
+    auth = build_x_auth()
+    if not auth:
+        return None
+    r = requests.get("https://api.twitter.com/2/users/me", auth=auth, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+def x_create_tweet(text, reply_to_id=None):
+    auth = build_x_auth()
+    if not auth:
+        return None
+
+    payload = {"text": x_safe(text)}
+    if reply_to_id:
+        payload["reply"] = {"in_reply_to_tweet_id": str(reply_to_id)}
+
+    r = requests.post(
+        "https://api.twitter.com/2/tweets",
+        auth=auth,
+        json=payload,
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+
+def x_get_mentions(user_id, since_id=None, max_results=10):
+    auth = build_x_auth()
+    if not auth:
+        return None
+
+    params = {
+        "max_results": max_results,
+        "tweet.fields": "author_id,created_at",
+        "expansions": "author_id",
+        "user.fields": "username",
+    }
+    if since_id:
+        params["since_id"] = str(since_id)
+
+    r = requests.get(
+        f"https://api.twitter.com/2/users/{user_id}/mentions",
+        auth=auth,
+        params=params,
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
 
 async def x_post(text):
-    client = build_x_client()
-    if not client:
+    if not build_x_auth():
+        log.warning("X post skipped: missing X credentials")
         return
     try:
-        await asyncio.to_thread(client.create_tweet, text=x_safe(text), user_auth=True)
+        await asyncio.to_thread(x_create_tweet, text, None)
+        log.info("X post sent")
     except Exception as e:
         log.warning("X post failed: %s", e)
 
-
 async def x_reply(tweet_id, text):
-    client = build_x_client()
-    if not client:
+    if not build_x_auth():
+        log.warning("X reply skipped: missing X credentials")
         return
     try:
-        await asyncio.to_thread(
-            client.create_tweet,
-            text=x_safe(text),
-            in_reply_to_tweet_id=tweet_id,
-            user_auth=True,
-        )
+        await asyncio.to_thread(x_create_tweet, text, tweet_id)
+        log.info("X reply sent to tweet %s", tweet_id)
     except Exception as e:
         log.warning("X reply failed: %s", e)
-
 
 # =========================
 # RESPONSE LOGIC
@@ -631,7 +565,6 @@ def telegram_keyword_response(raw_text):
 
     return None
 
-
 def x_keyword_response(raw_text):
     text = raw_text.lower()
 
@@ -657,7 +590,6 @@ def x_keyword_response(raw_text):
 
     return None
 
-
 # =========================
 # TELEGRAM
 # =========================
@@ -666,33 +598,26 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for _ in update.message.new_chat_members:
             await update.message.reply_text(tg_safe(pick_line("greeting", greetings)))
 
-
 async def ca_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tg_safe(pick_line("ca_cmd", ca_lines)))
-
 
 async def joke_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tg_safe(pick_line("joke_cmd", jokes)))
 
-
 async def update_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tg_safe(pick_line("update_cmd", updates)))
-
 
 async def replyline_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tg_safe(pick_line("replyline_cmd", reply_lines)))
 
-
 async def id_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(str(update.effective_chat.id))
-
 
 async def keyword_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
 
     raw = update.message.text.strip()
-
     preset = telegram_keyword_response(raw)
     if preset:
         await update.message.reply_text(tg_safe(preset))
@@ -708,7 +633,6 @@ async def keyword_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         if ai:
             await update.message.reply_text(tg_safe(ai))
-
 
 # =========================
 # BACKGROUND TASKS
@@ -732,74 +656,69 @@ async def combined_auto_post_loop(app):
         jitter = random.randint(-300, 300)
         await asyncio.sleep(max(600, POST_INTERVAL_SECONDS + jitter))
 
-
 async def x_mentions_loop(app):
     log.info("Starting X mentions loop")
 
-    client = build_x_client()
-    if not client:
-        log.warning("X client not configured; skipping mention loop")
+    if not build_x_auth():
+        log.warning("X auth missing; skipping mention loop")
         return
 
     try:
-        me = await asyncio.to_thread(client.get_me, user_auth=True)
-        me_id = me.data.id
-        me_username = me.data.username.lower()
+        me = await asyncio.to_thread(x_get_me)
+        me_data = (me or {}).get("data") or {}
+        me_id = me_data.get("id")
+        me_username = (me_data.get("username") or "").lower()
+
+        if not me_id or not me_username:
+            log.warning("X auth failed: missing me.id or me.username")
+            return
+
         log.info("X authenticated as @%s", me_username)
     except Exception as e:
         log.warning("X auth failed: %s", e)
         return
 
-    last_seen_id = None
-    recent_reply_times = deque(maxlen=MAX_X_REPLIES_PER_HOUR)
-
     try:
-        initial = await asyncio.to_thread(
-            client.get_users_mentions,
-            me_id,
-            max_results=5,
-            tweet_fields=["author_id", "created_at"],
-            expansions=["author_id"],
-            user_auth=True,
-        )
-        if initial and initial.data:
-            last_seen_id = max(int(t.id) for t in initial.data)
+        initial = await asyncio.to_thread(x_get_mentions, me_id, None, 5)
+        initial_data = (initial or {}).get("data") or []
+        if initial_data:
+            x_state["last_seen_id"] = max(int(t["id"]) for t in initial_data if "id" in t)
     except Exception as e:
         log.warning("Initial mention fetch failed: %s", e)
 
     while True:
         try:
-            resp = await asyncio.to_thread(
-                client.get_users_mentions,
+            now = time.time()
+            while x_state["reply_times"] and now - x_state["reply_times"][0] > 3600:
+                x_state["reply_times"].popleft()
+
+            mentions_resp = await asyncio.to_thread(
+                x_get_mentions,
                 me_id,
-                since_id=last_seen_id,
-                max_results=10,
-                tweet_fields=["author_id", "created_at"],
-                expansions=["author_id"],
-                user_auth=True,
+                x_state["last_seen_id"],
+                10,
             )
 
-            if resp and resp.data:
-                users = {}
-                if getattr(resp, "includes", None) and resp.includes.get("users"):
-                    users = {u.id: u.username for u in resp.includes["users"]}
+            data = (mentions_resp or {}).get("data") or []
+            includes = (mentions_resp or {}).get("includes") or {}
+            users_list = includes.get("users") or []
+            users = {u.get("id"): u.get("username", "") for u in users_list}
 
-                mentions = sorted(resp.data, key=lambda t: int(t.id))
+            if data:
+                mentions = sorted(data, key=lambda t: int(t["id"]))
                 for tw in mentions:
-                    last_seen_id = max(int(tw.id), last_seen_id or 0)
+                    tw_id = int(t["id"])
+                    x_state["last_seen_id"] = max(tw_id, x_state["last_seen_id"] or 0)
 
-                    author_username = users.get(tw.author_id, "")
-                    if author_username.lower() == me_username:
+                    author_id = tw.get("author_id")
+                    author_username = (users.get(author_id) or "").lower()
+                    if author_username == me_username:
                         continue
 
-                    now = asyncio.get_running_loop().time()
-                    while recent_reply_times and now - recent_reply_times[0] > 3600:
-                        recent_reply_times.popleft()
+                    if len(x_state["reply_times"]) >= MAX_X_REPLIES_PER_HOUR:
+                        break
 
-                    if len(recent_reply_times) >= MAX_X_REPLIES_PER_HOUR:
-                        continue
-
-                    raw_text = tw.text or ""
+                    raw_text = tw.get("text", "")
                     reply = x_keyword_response(raw_text)
 
                     if not reply:
@@ -813,8 +732,8 @@ async def x_mentions_loop(app):
                     if not reply:
                         reply = pick_line("x_reply", reply_lines)
 
-                    await x_reply(tw.id, reply)
-                    recent_reply_times.append(now)
+                    await x_reply(tw_id, reply)
+                    x_state["reply_times"].append(time.time())
                     await asyncio.sleep(random.randint(20, 60))
 
         except Exception as e:
@@ -822,12 +741,10 @@ async def x_mentions_loop(app):
 
         await asyncio.sleep(MENTION_CHECK_SECONDS)
 
-
 async def post_init(app):
     log.info("Starting background tasks")
-    app.create_task(combined_auto_post_loop(app))
-    app.create_task(x_mentions_loop(app))
-
+    asyncio.create_task(combined_auto_post_loop(app))
+    asyncio.create_task(x_mentions_loop(app))
 
 # =========================
 # MAIN
@@ -835,6 +752,8 @@ async def post_init(app):
 def main():
     if not TELEGRAM_TOKEN:
         raise RuntimeError("Missing TELEGRAM_BOT_TOKEN")
+
+    threading.Thread(target=start_health_server, daemon=True).start()
 
     app = (
         ApplicationBuilder()
@@ -853,7 +772,6 @@ def main():
 
     log.info("AGENT ORANGE ACTIVE")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
