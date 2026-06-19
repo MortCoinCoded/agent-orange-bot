@@ -84,16 +84,16 @@ def start_health_server():
 # LIBRARIES
 # =========================
 greetings = [
-    "🚨 AGENT ORANGE detected a new presence. Welcome to the timeline.",
-    "New signal received. Welcome to AGENT ORANGE.",
+    "🚨 ORGIE detected a new presence. Welcome to the party.",
+    "New signal received. Welcome to THE ORGY.",
     "System notice: a new user has entered the zone. Welcome.",
     "Welcome to the feed. Stay sharp. Stay weird.",
-    "Entry confirmed. You are now inside AGENT ORANGE territory.",
+    "Entry confirmed. You are now inside ORGIE territory.",
     "Another observer has arrived. Welcome to the anomaly.",
     "Signal locked. Welcome to the operation.",
     "Timeline breach confirmed. New member accepted.",
     "You found the signal. Welcome in.",
-    "AGENT ORANGE sees you. Welcome.",
+    "ORGIE sees you. Welcome.",
     "New unit detected. Welcome to the noise.",
     "Welcome aboard. Corruption levels remain acceptable.",
     "A fresh set of eyes just entered. Welcome.",
@@ -147,10 +147,10 @@ greetings = [
 ]
 
 jokes = [
-    "Weak hands detected.",
-    "Retail waking up on dial-up speed.",
+    "SIMP detected.",
+    "did you bring lube.",
     "The chart called. It said breathe.",
-    "Bullish on confusion.",
+    "Bullish on butt stuff.",
     "Liquidity went out for cigarettes.",
     "Signal ignored. As usual.",
     "Paper hands writing fan fiction again.",
@@ -210,12 +210,12 @@ jokes = [
 ]
 
 updates = [
-    "SYSTEM LOG 001 // signal stability: nominal",
+    "SYSTEM LOG 001 // signal stability: erection detected",
     "SYSTEM LOG 002 // timeline distortion rising",
     "SYSTEM LOG 003 // weak hands remain visible",
     "SYSTEM LOG 004 // attention flow increasing",
     "SYSTEM LOG 005 // noise detected across the feed",
-    "SYSTEM LOG 006 // market pulse unstable",
+    "SYSTEM LOG 006 // premature exit",
     "SYSTEM LOG 007 // volatility cluster forming",
     "SYSTEM LOG 008 // observer count growing slowly",
     "SYSTEM LOG 009 // signal integrity intact",
@@ -253,11 +253,11 @@ updates = [
 ]
 
 reply_lines = [
-    "Signal received.",
+    "YOU'RE INVITED.",
     "Observation logged.",
     "Paranoia detected.",
     "Correct.",
-    "Acceptable response.",
+    "Is that your wife.",
     "Noted.",
     "You noticed.",
     "Too early to tell. Too late to ignore.",
@@ -288,36 +288,36 @@ reply_lines = [
 ]
 
 gm_lines = [
-    "GM. Signal active.",
-    "GM. Orange protocol online.",
-    "GM. Timeline still unstable.",
-    "GM. Stay sharp.",
-    "GM. Another scan begins.",
+    "GM. MOFOS.",
+    "GM. Legends.",
+    "GM. Dont forget to stretch.",
+    "GM. bring lots of lube.",
+    "GM. We're gonna see tits today.",
     "GM. Feed remains active.",
     "GM. Static looks healthy.",
     "GM. Weak hands still visible.",
 ]
 
-orange_lines = [
-    "🟧",
-    "Orange protocol active.",
-    "AGENT ORANGE acknowledged.",
-    "🟧 signal received",
-    "Orange detected.",
-    "The orange square has spoken.",
-    "🟧 online",
-    "Orange layer active.",
+orgy_lines = [
+    "🍆",
+    "ORGIE protocol active.",
+    "AGENT ORGIE acknowledged.",
+    "🍆 signal received",
+    "Orgy detected.",
+    "The dong has spoken.",
+    "🍆 online",
+    "ORGIE active.",
 ]
 
 live_lines = [
-    "Still live.",
-    "AGENT ORANGE remains online.",
+    "In your moms bed.",
+    "ORGIE never sleeps.",
     "Live and watching.",
     "Signal still active.",
     "System remains online.",
     "Operational.",
     "Yes. Still here.",
-    "Online and scanning.",
+    "Online and watching porn.",
 ]
 
 ca_lines = [
@@ -335,23 +335,23 @@ TASKS = []
 
 for i in range(88):
     TASKS.append({
-        "task": f"Create a meme post about meme coin trenches #{i+1} 🟧 Tag @AgentOrange_AI",
+        "task": f"Create a meme post about meme coin trenches #{i+1} 🍆 Tag @ORGY_SOL",
         "points": 1
     })
 
 for i in range(10):
     TASKS.append({
-        "task": f"Create a cinematic meme about AI agents taking over crypto Twitter #{i+1} 🟧 Tag @AgentOrange_AI",
+        "task": f"Create a cinematic meme about AI agents taking over crypto Twitter #{i+1} 🍆 Tag @ORGY_SOL",
         "points": 2
     })
 
 TASKS.append({
-    "task": "LEGENDARY TASK: Create the most unhinged Agent Orange AI meme imaginable 🟧 Tag @AgentOrange_AI",
+    "task": "LEGENDARY TASK: Create the most unhinged Agent Orange AI meme imaginable 🍆 Tag @ORGY_SOL",
     "points": 10
 })
 
 TASKS.append({
-    "task": "LEGENDARY TASK: Create a fake movie poster showing Agent Orange AI taking over the internet 🟧 Tag @AgentOrange_AI",
+    "task": "LEGENDARY TASK: Create a fake movie poster showing Agent Orange AI taking over the internet 🍆 Tag @ORGY_SOL",
     "points": 10
 })
 
@@ -428,11 +428,11 @@ def keyword_live(text):
     return bool(re.search(r"\b(live|alive)\b", text))
 
 def keyword_orange(text, raw):
-    if raw.strip() == "🟧":
+    if raw.strip() == "🍆":
         return True
-    if "🟧" in raw:
+    if "🍆" in raw:
         return True
-    return bool(re.search(r"\b(agent orange|orange)\b", text))
+    return bool(re.search(r"\b(orgy|orgie)\b", text))
 
 def tg_safe(text):
     return text[:2000].strip()
@@ -471,7 +471,7 @@ def ai_generate_post():
         return None
 
     prompt = """
-You are AGENT ORANGE.
+You are ORGIE.
 
 Write one short X post.
 
@@ -643,8 +643,8 @@ def telegram_keyword_response(raw_text):
     text = raw_text.lower()
 
     if keyword_orange(text, raw_text):
-        if raw_text.strip() == "🟧":
-            return "🟧"
+        if raw_text.strip() == "🍆":
+            return "🍆"
         return pick_line("orange", orange_lines)
 
     if keyword_gm(text):
@@ -668,9 +668,9 @@ def x_keyword_response(raw_text):
     text = raw_text.lower()
 
     if keyword_orange(text, raw_text):
-        if raw_text.strip() == "🟧":
-            return "🟧"
-        return pick_line("x_orange", orange_lines)
+        if raw_text.strip() == "🍆":
+            return "🍆"
+        return pick_line("x_orgy", orgy_lines)
 
     if keyword_gm(text):
         return pick_line("x_gm", gm_lines)
@@ -709,7 +709,7 @@ async def update_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if news:
         await update.message.reply_text(
-            tg_safe(f"🟧 LIVE CRYPTO SIGNAL\n\n{news}")
+            tg_safe(f"🍆 LIVE CRYPTO SIGNAL\n\n{news}")
         )
         return
 
@@ -772,7 +772,7 @@ async def register_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.commit()
 
         await update.message.reply_text(
-            "🟧 Registration complete."
+            "🍆 Registration complete."
         )
 
     except:
@@ -798,7 +798,7 @@ async def task_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if active:
         await update.message.reply_text(
-            "🟧 You already have an active task."
+            "🍆 You already have an active task."
         )
         return
 
@@ -828,7 +828,7 @@ async def task_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.commit()
 
     await update.message.reply_text(
-        f"🟧 AGENT ORANGE TASK\n\n{task_data['task']}\n\nRequirements:\n• Include 🟧\n• Tag @AgentOrange_AI\n• Include a meme image\n\nReward:\n💰 {task_data['points']} Points\n\nSubmit with:\n/submit tweet_link"
+        f"🍆 ORGY TASK\n\n{task_data['task']}\n\nRequirements:\n• Include 🍆\n• Tag @ORGY_SOL\n• Include a meme image\n\nReward:\n💰 {task_data['points']} Points\n\nSubmit with:\n/submit tweet_link"
     )
 
 async def submit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -858,7 +858,7 @@ async def submit_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.commit()
 
         await update.message.reply_text(
-            "🟧 Submission received. Awaiting approval."
+            "🍆 Submission received. Awaiting approval."
         )
 
     except:
@@ -889,7 +889,7 @@ async def pending_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No pending submissions.")
         return
 
-    text = "🟧 Pending Submissions\n\n"
+    text = "🍆 Pending Submissions\n\n"
 
     for row in rows:
         text += (
