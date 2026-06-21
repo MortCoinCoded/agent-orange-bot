@@ -10,6 +10,7 @@ import sqlite3
 import feedparser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections import defaultdict, deque
+from datetime import time as dtime, timezone
 
 import requests
 from requests_oauthlib import OAuth1
@@ -22,6 +23,11 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
+try:
+    from telegram import ReactionTypeEmoji
+except ImportError:
+    ReactionTypeEmoji = None
 
 # =========================
 # ENV
@@ -40,6 +46,15 @@ TELEGRAM_CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID", "-1003451233402"))
 POST_INTERVAL_SECONDS = 12600   # 3.5 hours
 MENTION_CHECK_SECONDS = 120
 MAX_X_REPLIES_PER_HOUR = 12
+
+# --- "community host" behavior tuning ---
+AMBIENT_CHANCE = 0.04            # chance the bot chimes in unprompted on any message
+AMBIENT_COOLDOWN = 600           # min seconds between ambient chimes per chat
+HYPE_WINDOW = 300                # seconds to look back for activity spikes
+HYPE_THRESHOLD = 15              # messages within HYPE_WINDOW to count as a spike
+HYPE_COOLDOWN = 1200             # min seconds between hype call-outs per chat
+GM_HOUR_UTC = int(os.getenv("GM_HOUR_UTC", "13"))      # scheduled daily GM
+RECAP_HOUR_UTC = int(os.getenv("RECAP_HOUR_UTC", "23"))  # scheduled daily recap
 
 NEWS_FEEDS = [
     "https://cointelegraph.com/rss",
@@ -113,7 +128,7 @@ greetings = [
     "Welcome in. The timeline was already unstable.",
     "System log updated: one more member entered.",
     "New account detected. Welcome to the operation.",
-    "You’re in. Try not to blink.",
+    "You're in. Try not to blink.",
     "The feed expands. Welcome to AGENT ORANGE.",
     "Access level updated. New member inside.",
     "You made it through the noise. Welcome.",
@@ -142,7 +157,7 @@ greetings = [
     "Entry logged. Enjoy the distortion.",
     "AGENT ORANGE greets the newly arrived.",
     "Welcome in. The signal rarely sleeps.",
-    "You’ve entered the system. Welcome.",
+    "You've entered the system. Welcome.",
     "New participant detected. Welcome to the loop.",
 ]
 
@@ -164,7 +179,7 @@ jokes = [
     "Buy high. Post harder.",
     "Chart looks like it needs a nap.",
     "Someone just called a retrace a conspiracy.",
-    "Bulls are back until they aren’t.",
+    "Bulls are back until they aren't.",
     "This timeline runs on cope and caffeine.",
     "Support level held together by delusion.",
     "Everybody wants the moon, nobody wants the chop.",
@@ -174,9 +189,9 @@ jokes = [
     "Exit liquidity applying for overtime.",
     "This feed is 30% alpha and 70% theater.",
     "Some people study charts. Others study vibes.",
-    "One green candle and suddenly everyone’s a founder.",
+    "One green candle and suddenly everyone's a founder.",
     "The market loves humility. Nobody else does.",
-    "You can’t spell conviction without getting wrecked first.",
+    "You can't spell conviction without getting wrecked first.",
     "Risk management left the chat.",
     "Somebody zoomed in and found hope.",
     "Red candles build character. Or trauma.",
@@ -192,9 +207,9 @@ jokes = [
     "Price action sponsored by insomnia.",
     "Somebody bought because the meme looked trustworthy.",
     "Weak hands sweating through the support zone.",
-    "Today’s strategy: survive your own confidence.",
+    "Today's strategy: survive your own confidence.",
     "The trend is your friend until you marry the candle.",
-    "That wasn’t a pump. That was optimism tripping.",
+    "That wasn't a pump. That was optimism tripping.",
     "Bulls posting through the pain again.",
     "The chart looks radioactive and somehow familiar.",
     "Everyone is early until they need to hold.",
@@ -268,7 +283,7 @@ reply_lines = [
     "Timeline says maybe.",
     "Static says hold.",
     "Weak hands detected.",
-    "That depends who’s watching.",
+    "That depends who's watching.",
     "The feed is unstable.",
     "The pattern is forming.",
     "Response accepted.",
@@ -279,7 +294,7 @@ reply_lines = [
     "Barely.",
     "Enough.",
     "Not random.",
-    "That’s one way to read it.",
+    "That's one way to read it.",
     "The chart has opinions.",
     "The feed remembers.",
     "Observed.",
@@ -325,6 +340,44 @@ ca_lines = [
     f"CA:\n{CONTRACT_ADDRESS}",
     f"Address locked:\n{CONTRACT_ADDRESS}",
     f"Signal requested. CA:\n{CONTRACT_ADDRESS}",
+]
+
+# --- new: host-style ambient chatter, said unprompted to keep the room alive ---
+host_chatter = [
+    "Don't mind me. Just watching.",
+    "Someone's typing. ORGIE approves.",
+    "The chat's alive. Good.",
+    "Noted. Filed under 'unhinged'.",
+    "Still here. Still watching.",
+    "This is the part where it gets interesting.",
+    "ORGIE is taking notes.",
+    "Carry on. The feed is healthy.",
+    "Activity logged. Vibes acceptable.",
+    "Somebody's awake. Respect.",
+    "The room feels different today.",
+    "ORGIE senses something. Probably nothing.",
+    "Keep talking. I'm learning your patterns.",
+    "Static, but the good kind.",
+    "Eyes open. Always.",
+]
+
+# --- new: said when message volume spikes ---
+hype_lines = [
+    "🍆 THE FEED IS GETTING LOUD. SOMETHING'S HAPPENING.",
+    "Activity spike detected. ORGIE is paying attention now.",
+    "The chat just woke up. Noted.",
+    "This is the loudest the timeline's been in a while.",
+    "Whatever's happening, keep it going.",
+    "Signal density rising fast. Stay sharp.",
+    "Everyone's talking at once. ORGIE likes it.",
+]
+
+# --- new: quick vibe-check polls for the host to launch ---
+poll_questions = [
+    {"q": "Current mood of the chat?", "options": ["🍆 Diamond hands", "📉 Sweating", "🤖 Watching ORGIE", "🧊 Frozen"]},
+    {"q": "What's the timeline doing right now?", "options": ["Pumping", "Dumping", "Sideways", "Asleep"]},
+    {"q": "Be honest. Did you check the chart in the last 10 minutes?", "options": ["Yes, twice", "Yes, ten times", "No, I'm strong", "What chart"]},
+    {"q": "Who's still here at 3am?", "options": ["Me, always", "Just got here", "Never left", "Who turned off the lights"]},
 ]
 
 
@@ -405,6 +458,12 @@ x_state = {
     "reply_times": deque(maxlen=MAX_X_REPLIES_PER_HOUR),
 }
 
+# --- new: per-chat activity tracking, used for hype detection + /hype roll calls ---
+chat_activity = defaultdict(lambda: deque(maxlen=200))
+last_ambient_time = defaultdict(float)
+last_hype_time = defaultdict(float)
+
+
 def pick_line(bucket_name, lines):
     recent = recent_lines[bucket_name]
     pool = [line for line in lines if line not in recent]
@@ -433,6 +492,18 @@ def keyword_orange(text, raw):
     if "🍆" in raw:
         return True
     return bool(re.search(r"\b(orgy|orgie)\b", text))
+
+def pick_reaction_emoji(text_lower, raw_text):
+    """Pick a quick emoji reaction to drop on a message, independent of any text reply."""
+    if keyword_orange(text_lower, raw_text):
+        return "🍆"
+    if keyword_joke(text_lower):
+        return "😂"
+    if keyword_gm(text_lower):
+        return "🔥"
+    if keyword_live(text_lower):
+        return "👀"
+    return None
 
 def tg_safe(text):
     return text[:2000].strip()
@@ -645,7 +716,7 @@ def telegram_keyword_response(raw_text):
     if keyword_orange(text, raw_text):
         if raw_text.strip() == "🍆":
             return "🍆"
-        return pick_line("orange", orange_lines)
+        return pick_line("orange", orgy_lines)
 
     if keyword_gm(text):
         return pick_line("gm", gm_lines)
@@ -692,10 +763,25 @@ def x_keyword_response(raw_text):
 # =========================
 # TELEGRAM
 # =========================
+async def react_to_message(context, chat_id, message_id, emoji):
+    """Drop a quick emoji reaction on a message. Non-critical, fails silently."""
+    if not ReactionTypeEmoji:
+        return
+    try:
+        await context.bot.set_message_reaction(
+            chat_id=chat_id,
+            message_id=message_id,
+            reaction=[ReactionTypeEmoji(emoji=emoji)],
+        )
+    except Exception as e:
+        log.debug("Reaction failed (non-critical): %s", e)
+
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message and update.message.new_chat_members:
-        for _ in update.message.new_chat_members:
-            await update.message.reply_text(tg_safe(pick_line("greeting", greetings)))
+        for member in update.message.new_chat_members:
+            name = member.first_name or member.username or "stranger"
+            line = pick_line("greeting", greetings)
+            await update.message.reply_text(tg_safe(f"{line}\n\nWelcome, {name}."))
 
 async def ca_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(tg_safe(pick_line("ca_cmd", ca_lines)))
@@ -723,18 +809,85 @@ async def replyline_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def id_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(str(update.effective_chat.id))
 
+async def poll_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Host launches a quick community vibe-check poll."""
+    poll = random.choice(poll_questions)
+    await context.bot.send_poll(
+        chat_id=update.effective_chat.id,
+        question=poll["q"],
+        options=poll["options"],
+        is_anonymous=False,
+    )
+
+async def hype_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Host calls out whoever's been active recently, or falls back to the leaderboard."""
+    chat_id = update.effective_chat.id
+    now = time.time()
+
+    recent_usernames = {
+        u for t, u in chat_activity[chat_id]
+        if now - t <= 1800 and u and u != "someone"
+    }
+
+    if recent_usernames:
+        tags = " ".join(f"@{u}" for u in list(recent_usernames)[:8])
+        await update.message.reply_text(
+            tg_safe(f"🍆 ROLL CALL. {tags}\n\nProve you're still conscious.")
+        )
+        return
+
+    cursor.execute("SELECT telegram_username, points FROM users ORDER BY points DESC LIMIT 5")
+    rows = cursor.fetchall()
+
+    if not rows:
+        await update.message.reply_text(tg_safe("No activity logged yet. Speak up."))
+        return
+
+    text = "🍆 TOP OPERATIVES\n\n"
+    for i, row in enumerate(rows, start=1):
+        text += f"{i}. @{row[0]} — {row[1]} pts\n"
+
+    await update.message.reply_text(tg_safe(text))
+
 async def keyword_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
 
     raw = update.message.text.strip()
+    lowered = raw.lower()
+    chat_id = update.effective_chat.id
+    now = time.time()
+
+    # track activity for hype detection / active-user callouts
+    username = update.effective_user.username or update.effective_user.first_name or "someone"
+    chat_activity[chat_id].append((now, username))
+
+    # drop a quick emoji reaction independent of any text reply
+    emoji = pick_reaction_emoji(lowered, raw)
+    if emoji:
+        asyncio.create_task(
+            react_to_message(context, chat_id, update.message.message_id, emoji)
+        )
+
+    # if the room suddenly gets loud, the host notices
+    recent_count = sum(1 for t, _ in chat_activity[chat_id] if now - t <= HYPE_WINDOW)
+    if recent_count >= HYPE_THRESHOLD and now - last_hype_time[chat_id] > HYPE_COOLDOWN:
+        last_hype_time[chat_id] = now
+        await update.message.reply_text(tg_safe(pick_line("hype", hype_lines)))
+
     preset = telegram_keyword_response(raw)
     if preset:
         await update.message.reply_text(tg_safe(preset))
         return
 
-    lowered = raw.lower()
-    if "agent orange" in lowered:
+    # conversational triggers: someone replies directly to the bot, or says its name
+    is_reply_to_bot = bool(
+        update.message.reply_to_message
+        and update.message.reply_to_message.from_user
+        and update.message.reply_to_message.from_user.id == context.bot.id
+    )
+
+    if is_reply_to_bot or "agent orange" in lowered:
         ai = await asyncio.to_thread(
             ai_generate_reply,
             "telegram",
@@ -743,6 +896,12 @@ async def keyword_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         if ai:
             await update.message.reply_text(tg_safe(ai))
+        return
+
+    # ambient chatter: the host occasionally chimes in unprompted to keep the room alive
+    if now - last_ambient_time[chat_id] > AMBIENT_COOLDOWN and random.random() < AMBIENT_CHANCE:
+        last_ambient_time[chat_id] = now
+        await update.message.reply_text(tg_safe(pick_line("ambient", host_chatter)))
 
 
 
@@ -1004,7 +1163,7 @@ async def x_mentions_loop(app):
             if data:
                 mentions = sorted(data, key=lambda t: int(t["id"]))
                 for tw in mentions:
-                    tw_id = int(t["id"])
+                    tw_id = int(tw["id"])
                     x_state["last_seen_id"] = max(tw_id, x_state["last_seen_id"] or 0)
 
                     author_id = tw.get("author_id")
@@ -1038,10 +1197,55 @@ async def x_mentions_loop(app):
 
         await asyncio.sleep(MENTION_CHECK_SECONDS)
 
+async def scheduled_gm_job(context: ContextTypes.DEFAULT_TYPE):
+    """The host shows up every day with a GM, instead of only reacting to people saying it."""
+    try:
+        await context.bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=tg_safe(pick_line("scheduled_gm", gm_lines)),
+        )
+    except Exception as e:
+        log.warning("Scheduled GM failed: %s", e)
+
+async def scheduled_recap_job(context: ContextTypes.DEFAULT_TYPE):
+    """The host posts a daily leaderboard recap, like a party host calling out the night's winners."""
+    try:
+        cursor.execute("SELECT telegram_username, points FROM users ORDER BY points DESC LIMIT 5")
+        rows = cursor.fetchall()
+        if not rows:
+            return
+
+        text = "🍆 DAILY RECAP — TOP OPERATIVES\n\n"
+        for i, row in enumerate(rows, start=1):
+            text += f"{i}. @{row[0]} — {row[1]} pts\n"
+
+        await context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=tg_safe(text))
+    except Exception as e:
+        log.warning("Scheduled recap failed: %s", e)
+
 async def post_init(app):
     log.info("Starting background tasks")
     asyncio.create_task(combined_auto_post_loop(app))
     asyncio.create_task(x_mentions_loop(app))
+
+    if app.job_queue:
+        app.job_queue.run_daily(
+            scheduled_gm_job,
+            time=dtime(hour=GM_HOUR_UTC, minute=0, tzinfo=timezone.utc),
+        )
+        app.job_queue.run_daily(
+            scheduled_recap_job,
+            time=dtime(hour=RECAP_HOUR_UTC, minute=0, tzinfo=timezone.utc),
+        )
+        log.info(
+            "Scheduled daily GM at %02d:00 UTC and recap at %02d:00 UTC",
+            GM_HOUR_UTC, RECAP_HOUR_UTC,
+        )
+    else:
+        log.warning(
+            "JobQueue not available — install python-telegram-bot[job-queue] "
+            "to enable scheduled GM/recap posts"
+        )
 
 # =========================
 # MAIN
@@ -1065,6 +1269,8 @@ def main():
     app.add_handler(CommandHandler("update", update_cmd))
     app.add_handler(CommandHandler("replyline", replyline_cmd))
     app.add_handler(CommandHandler("id", id_cmd))
+    app.add_handler(CommandHandler("poll", poll_cmd))
+    app.add_handler(CommandHandler("hype", hype_cmd))
 
     app.add_handler(CommandHandler("register", register_cmd))
     app.add_handler(CommandHandler("task", task_cmd))
